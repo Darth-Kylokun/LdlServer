@@ -5,32 +5,33 @@ import sys
 
 import aiohttp
 
+queue = asyncio.Queue()
 
-async def start_client(loop: asyncio.AbstractEventLoop, url):
+
+async def start_client(url, loop):
     name = input('Please enter your name: ')
 
-    # send request
     ws = await aiohttp.ClientSession().ws_connect(url, autoclose=False, autoping=False)
 
-    # input reader
     def stdin_callback():
         line = sys.stdin.buffer.readline().decode('utf-8')
         if not line:
             loop.stop()
         else:
-            asyncio.run_coroutine_threadsafe(ws.send_str(name + ': ' + line), loop)
-    loop.add_reader(sys.stdin.fileno(), stdin_callback)
+            # Queue.put is a coroutine, so you can't call it directly.
+            asyncio.ensure_future(queue.put(ws.send_str(name + ': ' + line)))
+
+    loop.add_reader(sys.stdin, stdin_callback)
 
     async def dispatch():
         while True:
             msg = await ws.receive()
-
             if msg.type == aiohttp.WSMsgType.TEXT:
                 print('Text: ', msg.data.strip())
             elif msg.type == aiohttp.WSMsgType.BINARY:
                 print('Binary: ', msg.data)
             elif msg.type == aiohttp.WSMsgType.PING:
-                ws.pong()
+                await ws.pong()
             elif msg.type == aiohttp.WSMsgType.PONG:
                 print('Pong received')
             else:
@@ -40,10 +41,18 @@ async def start_client(loop: asyncio.AbstractEventLoop, url):
                     print('Error during receive %s' % ws.exception())
                 elif msg.type == aiohttp.WSMsgType.CLOSED:
                     pass
-
                 break
 
     await dispatch()
+
+
+async def tick():
+    while True:
+        await (await queue.get())
+
+
+async def main(url, loop):
+    await asyncio.wait([start_client(url, loop), tick()])
 
 
 ARGS = argparse.ArgumentParser(
@@ -66,5 +75,5 @@ if __name__ == '__main__':
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.add_signal_handler(signal.SIGINT, loop.stop)
-    loop.create_task(start_client(loop, url))
+    asyncio.Task(main(url, loop))
     loop.run_forever()

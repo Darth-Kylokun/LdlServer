@@ -1,37 +1,68 @@
-use actix::{Actor, StreamHandler};
-use actix_web::{get, web, App, HttpResponse, HttpServer, HttpRequest, Error};
+
+
+use std::{
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Instant,
+};
+
+use actix::*;
+use actix_files::{Files, NamedFile};
+use actix_web::{
+    middleware::Logger, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
+};
 use actix_web_actors::ws;
 
-struct Ws;
+mod server;
+mod session;
 
-impl Actor for Ws {
-    type Context = ws::WebsocketContext<Self>;
+async fn chat_route(
+    req: HttpRequest,
+    stream: web::Payload,
+    srv: web::Data<Addr<server::ChatServer>>
+) -> Result<HttpResponse, Error> {
+    ws::start(
+        session::WsChatSession{
+            id: 0,
+            hb: Instant::now(),
+            room: "main".to_owned(),
+            name: None,
+            addr: srv.get_ref().clone()
+        }, 
+        &req, 
+        stream
+    )
 }
 
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        match msg {
-            Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
-            Ok(ws::Message::Text(text)) => ctx.text(text),
-            Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
-            _ => (),
-        }
-    }
-}
-
-#[get("/ws/")]
-async fn index(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    let resp = ws::start(Ws {}, &req, stream);
-    println!("{:?}", resp);
-    resp
+async fn get_count(count: web::Data<AtomicUsize>) -> impl Responder {
+    let current_count = count.load(Ordering::SeqCst);
+    format!("Visitors: {current_count}")
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
+    // set up applications state
+    // keep a count of the number of visitors
+    let app_state = Arc::new(AtomicUsize::new(0));
+
+    // start chat server actor
+    let server = server::ChatServer::new(app_state.clone()).start();
+
+    log::info!("starting HTTP server at http://localhost:8080");
+
+    HttpServer::new(move || {
         App::new()
-            .service(index)
+            .app_data(web::Data::from(app_state.clone()))
+            .app_data(web::Data::new(server.clone()))
+            .route("/count", web::get().to(get_count))
+            .route("/ws", web::get().to(chat_route))
+            .wrap(Logger::default())
     })
+    .workers(2)
     .bind(("127.0.0.1", 8080))?
     .run()
     .await
