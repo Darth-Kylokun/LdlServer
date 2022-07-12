@@ -1,26 +1,36 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, body};
+use actix::{Actor, StreamHandler};
+use actix_web::{get, web, App, HttpResponse, HttpServer, HttpRequest, Error};
+use actix_web_actors::ws;
 
-#[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello, World!")
+struct Ws;
+
+impl Actor for Ws {
+    type Context = ws::WebsocketContext<Self>;
 }
 
-#[post("/echo")]
-async fn echo(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        match msg {
+            Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
+            Ok(ws::Message::Text(text)) => ctx.text(text),
+            Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
+            _ => (),
+        }
+    }
 }
 
-async fn manual_hello() -> impl Responder {
-    HttpResponse::Ok().body("Hey, there!")
+#[get("/ws/")]
+async fn index(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+    let resp = ws::start(Ws {}, &req, stream);
+    println!("{:?}", resp);
+    resp
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
-            .service(hello)
-            .service(echo)
-            .route("/hey", web::get().to(manual_hello))
+            .service(index)
     })
     .bind(("127.0.0.1", 8080))?
     .run()
