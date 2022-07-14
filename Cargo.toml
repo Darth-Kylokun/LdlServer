@@ -10,9 +10,10 @@ actix = "0.13.0"
 actix-web = "4.1.0"
 actix-files = "0.6.1"
 actix-web-actors = "4.1.0"
-diesel = { version = "1.4.8", features = ["postgres"] }
+diesel = { version = "1.4.8", features = ["sqlite"] }
 dotenv = "0.15.0"
 rand = "0.8.5"
 log = "0.4.17"
 env_logger = "0.9"
-libsqlite3-sys = "0.24.2"
+uuid = { version = "1.1.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
+libsqlite3-sys = { version = "0.9.1", features = ["bundled"] }
