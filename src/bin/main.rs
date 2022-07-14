@@ -1,13 +1,23 @@
-use actix_web::{middleware, App, HttpServer};
+use actix_web::{middleware, App, HttpServer, web};
+use diesel::{r2d2::{ConnectionManager, self}, SqliteConnection};
 use ldl_server::app_config::config_app;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
-    env_logger::init();
+    dotenv::dotenv().ok();
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-    HttpServer::new(|| {
+    let conn_spec = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+    let manager = ConnectionManager::<SqliteConnection>::new(conn_spec);
+    let pool = r2d2::Pool::builder()
+        .build(manager)
+        .expect("Failed to create pool.");
+
+    log::info!("Starting HTTP server at http://localhost:8080");
+
+    HttpServer::new(move || {
         App::new()
+            .app_data(web::Data::new(pool.clone()))
             .configure(config_app)
             .wrap(middleware::Logger::default())
     })
