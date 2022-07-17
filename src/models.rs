@@ -15,3 +15,9 @@ pub struct User {
 pub struct NewUser {
     pub name: String
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ChangeColor {
+    pub id: usize,
+    pub color: u32
+}

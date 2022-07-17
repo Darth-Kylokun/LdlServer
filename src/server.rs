@@ -44,6 +44,14 @@ pub struct Join {
     pub name: String
 }
 
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct ChangeColor {
+    pub id: usize,
+    pub color: u32,
+    pub room: String
+}
+
 #[derive(Debug)]
 pub struct ChatServer {
     sessions: HashMap<usize, Recipient<Message>>,
@@ -152,3 +160,14 @@ impl Handler<Join> for ChatServer {
         self.send_message(&name, "Someone joined", id);
     }
 }
+
+impl Handler<ChangeColor> for ChatServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: ChangeColor, ctx: &mut Self::Context) -> Self::Result {
+        self.send_message(&msg.room, message, skip_id)
+    }
+}
+
+// FINISH SENDING IN BSON DATA TO CLIENT
+// CLEAN UP CODE TO ONLY REFLECT BSON DATA BEING SENT
