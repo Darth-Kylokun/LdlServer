@@ -7,6 +7,8 @@ use std::{
 use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 
+use crate::models::RecvChangeColor;
+
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Message(pub String);
@@ -21,27 +23,6 @@ pub struct Connect {
 #[rtype(result = "()")]
 pub struct Disconnect {
     pub id: usize
-}
-
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct ClientMessage {
-    pub id: usize,
-    pub msg: String,
-    pub room: String
-}
-
-pub struct ListRooms;
-
-impl actix::Message for ListRooms {
-    type Result = Vec<String>;
-}
-
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct Join {
-    pub id: usize,
-    pub name: String
 }
 
 #[derive(Message)]
@@ -61,7 +42,6 @@ pub struct ChatServer {
 
 impl ChatServer {
     pub fn new() -> ChatServer {
-
         ChatServer {
             sessions: HashMap::new(),
             rooms: HashMap::new(),
@@ -127,45 +107,18 @@ impl Handler<Disconnect> for ChatServer {
     }
 }
 
-impl Handler<ClientMessage> for ChatServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: ClientMessage, _: &mut Self::Context) -> Self::Result {
-        self.send_message(&msg.room, msg.msg.as_str(), msg.id);
-    }
-}
-
-impl Handler<Join> for ChatServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: Join, _: &mut Self::Context) -> Self::Result {
-        let Join { id, name } = msg;
-        let mut rooms = Vec::new();
-
-        for (n, sessions) in &mut self.rooms {
-            if sessions.remove(&id) {
-                rooms.push(n.to_owned())
-            }
-        }
-
-        for room in rooms {
-            self.send_message(&room, "Someone left", 0);
-        }
-
-        self.rooms
-            .entry(id.to_string())
-            .or_insert_with(HashSet::new)
-            .insert(id);
-
-        self.send_message(&name, "Someone joined", id);
-    }
-}
-
 impl Handler<ChangeColor> for ChatServer {
     type Result = ();
 
-    fn handle(&mut self, msg: ChangeColor, ctx: &mut Self::Context) -> Self::Result {
-        self.send_message(&msg.room, message, skip_id)
+    fn handle<'r>(&mut self, msg: ChangeColor, _: &mut Self::Context) -> Self::Result {
+        let recv = RecvChangeColor {
+            author_id: msg.id,
+            color: msg.color
+        };
+
+        let r = serde_json::to_string(&recv).unwrap();
+
+        self.send_message(&msg.room, &r, msg.id)
     }
 }
 

@@ -1,10 +1,10 @@
 use std::time::{Duration, Instant};
 
+use serde_json;
 use actix::prelude::*;
 use actix_web_actors::ws;
-use bson;
 
-use crate::{server, models::ChangeColor};
+use crate::{server, models::SendChangeColor};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -86,17 +86,22 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
             ws::Message::Pong(_) => {
                 self.hb = Instant::now();
             }
-            ws::Message::Text(_) => {
-            }
-            ws::Message::Binary(data) => {
-                let cmd: ChangeColor = bson::from_slice(&data).unwrap();
-
+            ws::Message::Text(data) => {
+                let cmd: SendChangeColor= serde_json::from_str(&data).unwrap();
+                
                 self.addr
                     .send(server::ChangeColor {
                         id: self.id,
                         color: cmd.color,
-                        room: self.room
+                        room: cmd.recv_id.to_string()
                     })
+                    .into_actor(self)
+                    .then(|_, _, _| {
+                        fut::ready(())
+                    })
+                    .wait(ctx);
+            }
+            ws::Message::Binary(_) => {
             }
             ws::Message::Close(reason) => {
                 ctx.close(reason);
