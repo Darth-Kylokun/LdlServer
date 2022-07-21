@@ -46,7 +46,10 @@ impl Actor for WsChatSession {
             .into_actor(self)
             .then(|res, act, ctx| {
                 match res {
-                    Ok(res) => act.id = res,
+                    Ok(res) => {
+                        act.id = res;
+                        act.room = act.id.to_string();
+                    },
                     _ => ctx.stop(),
                 }
                 fut::ready(())
