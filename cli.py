@@ -9,8 +9,6 @@ queue = asyncio.Queue()
 
 
 async def start_client(url, loop):
-    name = input('Please enter your name: ')
-
     ws = await aiohttp.ClientSession().ws_connect(url, autoclose=False, autoping=False)
 
     def stdin_callback():
@@ -19,7 +17,7 @@ async def start_client(url, loop):
             loop.stop()
         else:
             # Queue.put is a coroutine, so you can't call it directly.
-            asyncio.ensure_future(queue.put(ws.send_str(name + ': ' + line)))
+            asyncio.ensure_future(queue.put(ws.send_str(line)))
 
     loop.add_reader(sys.stdin, stdin_callback)
 
@@ -70,10 +68,10 @@ if __name__ == '__main__':
         args.host, port = args.host.split(':', 1)
         args.port = int(port)
 
-    url = 'http://{}:{}/ws/'.format(args.host, args.port)
+    url = 'http://{}:{}/ws/connect'.format(args.host, args.port)
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.add_signal_handler(signal.SIGINT, loop.stop)
+    signal.signal(signal.SIGINT, loop.stop)
     asyncio.Task(main(url, loop))
     loop.run_forever()

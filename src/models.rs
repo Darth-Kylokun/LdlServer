@@ -15,3 +15,15 @@ pub struct User {
 pub struct NewUser {
     pub name: String
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SendChangeColor {
+    pub recv_id: usize,
+    pub color: u32
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RecvChangeColor {
+    pub author_id: usize,
+    pub color: u32
+}
